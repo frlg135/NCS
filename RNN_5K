@@ -1,4 +1,4 @@
-#This code file uses different RNN models to perform five fold cross validation on the data,
+#This code file uses different RNN models to perform five-fold cross validation on the data,
 #Obtain the accuracy of the optimal model and training set, the accuracy of the validation set, and the training loss
 import torch
 import torch.nn as nn
