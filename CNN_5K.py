@@ -331,7 +331,7 @@ excel_writer.save()
 
 # Load the optimal model after training is completed
 best_model = CNN(input_channels, sequence_length, output_size)
-best_model.load_state_dict(torch.load('CNN-3Class-batchsize=16-dropout=0.2.pt'))
+best_model.load_state_dict(torch.load('CNN-github.pt'))
 best_model.to(device)
 best_model.eval()  # Switch the model to evaluation mode
 
