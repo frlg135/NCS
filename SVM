@@ -1,4 +1,4 @@
-#This code file uses an SVM model to validate the data,
+#This code file uses an SVM model to validate the data, 
 #Obtain the accuracy of the optimal model and training set, the accuracy of the validation set, and the training loss
 from sklearn import svm
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
