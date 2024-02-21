@@ -247,11 +247,6 @@ best_accuracy_index = accuracies.index(max(accuracies))
 best_model_state_dict = best_models[best_accuracy_index]
 torch.save(best_model_state_dict, r'sheep/LSTM_github.pth')
 
-# mean_loss_list = np.mean(all_losses, axis=0)
-# mean_accuracy_list = np.mean(all_accuracies, axis=0)
-
-# plot_loss_and_accuracy(mean_loss_list, mean_accuracy_list, num_epochs)
-
 # Save the results to an Excel file
 print(data_valAcc.shape)
 df = pd.DataFrame(data_valAcc)
