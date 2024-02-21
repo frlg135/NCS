@@ -15,7 +15,6 @@ import torch.nn.functional as F
 import torch.nn.init as init
 
 os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
-
 #使用全体数据集“即带N的数据”时，使用ImprovedCNN，读取数据时每一个先归一化，再读取数据完成拼接后整体归一化，缺一不可。每一批次不可再归一化，即可得到收敛，训练集准确率接近1，可用
 
 # Define your CNN architecture
