@@ -1,0 +1,268 @@
+#This code file uses different CLSTM models to perform five fold cross validation on the data,
+#Obtain the accuracy of the optimal model and training set, the accuracy of the validation set, and the training loss
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+import matplotlib.pyplot as plt
+import scipy.io
+import torch
+import os
+import numpy as np
+from torch.nn import DataParallel
+from torch.utils.data import TensorDataset, DataLoader
+from sklearn.model_selection import KFold
+from sklearn.model_selection import StratifiedKFold
+import matplotlib.pyplot as plt
+import os
+import numpy as np
+import h5py
+from sklearn.metrics import confusion_matrix
+import random
+
+
+def train_and_evaluate(model, x_train, y_train, x_val, y_val, num_epochs=10, learning_rate=0.001, batch_size=500, fold_idx=None):
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=0.001)
+    weight_decay=0.001
+    model = model.to('cuda')
+
+    # Convert to TensorDataset and DataLoader
+    train_dataset = TensorDataset(x_train, y_train)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
+    best_accuracy = 0.0
+    best_model = None
+    loss_list = []
+    accuracy_list = []
+    accuracy_list = []
+
+    for epoch in range(num_epochs):
+        model.train()
+        if epoch >= 30:
+            learning_rate = learning_rate * 0.5
+        if epoch >=70:
+            learning_rate = learning_rate * 0.2
+        for batch_x, batch_y in train_loader:
+            batch_x = batch_x.to('cuda')
+            batch_y = batch_y.to('cuda')
+
+            optimizer.zero_grad()
+            outputs = model(batch_x)
+            loss = criterion(outputs, batch_y)
+            
+            #正则化
+            l2_regularization = 0
+            for param in model.parameters():
+                l2_regularization += torch.norm(param, 2)
+            loss += weight_decay * l2_regularization
+            
+            loss.backward()
+            optimizer.step()
+
+        model.eval()
+        with torch.no_grad():
+            x_val = x_val.to('cuda')
+            # x_val = x_val.transpose(0, 1)
+            y_val = y_val.to('cuda')
+            val_outputs = model(x_val)
+            val_loss = criterion(val_outputs, y_val)
+            _, predicted = torch.max(val_outputs, 1)
+            accuracy = (predicted == y_val).sum().item() / y_val.size(0)
+            confusion = confusion_matrix(y_val.cpu(), predicted.cpu())
+            confusion_matrices.append(confusion)
+            
+            x_train = x_train.to('cuda')
+            y_train = y_train.to('cuda')
+            train_outputs = model(x_train)
+            _, train_predicted = torch.max(train_outputs, 1)
+            train_accuracy = (train_predicted == y_train).sum().item() / y_train.size(0)
+
+            loss_list.append(loss.item())
+            accuracy_list.append(accuracy)
+
+            if accuracy > best_accuracy:
+                best_accuracy = accuracy
+                best_model = model.state_dict()
+
+        print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}, "
+          f"Train Accuracy: {train_accuracy:.4f}, Val Loss: {val_loss.item():.4f}, Val Accuracy: {accuracy:.4f}")
+        data_traAcc[fold_idx, epoch] = train_accuracy
+        data_loss[fold_idx, epoch] = val_loss
+        data_valAcc[fold_idx, epoch] = accuracy
+
+
+    return best_model, best_accuracy, loss_list, accuracy_list
+
+def plot_loss_and_accuracy(loss_list, accuracy_list, num_epochs):
+    plt.figure(figsize=(12, 6))
+    plt.subplot(1, 2, 1)
+    plt.plot(range(1, num_epochs + 1), loss_list, label='Training Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.legend()
+
+    plt.subplot(1, 2, 2)
+    plt.plot(range(1, num_epochs + 1), accuracy_list, label='Validation Accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.legend()
+
+    plt.show()
+
+class LSTM(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers, output_size):
+        super().__init__()
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers)
+        self.fc = nn.Linear(hidden_size, output_size)
+ 
+    def forward(self, x):
+        h0 = torch.zeros(self.num_layers, x.size(1), self.hidden_size).to(x.device)
+        c0 = torch.zeros(self.num_layers, x.size(1), self.hidden_size).to(x.device)
+        out, _ = self.lstm(x, (h0, c0))
+        out = self.fc(out[:, -1, :])
+        return out
+
+# Modify the following parameters according to data and model requirements
+input_size = 1   
+output_size = 3   
+sequence_length = 512  
+
+batch_size = 256
+hidden_size =  64 
+num_layers = 2   
+
+num_epochs = 50
+learning_rate = 0.001  
+
+#Data processing
+import pandas as pd
+import os
+import numpy as np
+import h5py
+
+def extract_data_from_excel(folder_path, num_files=500, num_data_points=25):
+    data_array = []
+    file_names = os.listdir(folder_path)
+
+    # Randomly select num_files files from the list
+    selected_file_names = random.sample(file_names, num_files)
+
+    for file_name in selected_file_names:
+        file_path = os.path.join(folder_path, file_name)
+
+        df = pd.read_excel(file_path)
+
+        data = df.iloc[:, 1].values
+
+        data_array.append(data)
+
+    data_array = pd.DataFrame(data_array).to_numpy()
+
+    return data_array
+
+folder_path = r'sheep\D'
+down_data = extract_data_from_excel(folder_path)
+
+folder_path = r'sheep\S'
+stand_data = extract_data_from_excel(folder_path)
+
+folder_path = r'sheep\W'
+walk_data = extract_data_from_excel(folder_path)
+
+all_data = np.concatenate((down_data, stand_data, walk_data), axis=0)
+x = all_data[:, : ,np.newaxis]
+labels = np.concatenate((np.zeros(down_data.shape[0]), np.ones(stand_data.shape[0]), 2*np.ones(walk_data.shape[0])))
+print("数据x shape:", x.shape)
+print("标签y shape:", labels.shape)
+
+x = torch.tensor(x, dtype=torch.float32)
+y = torch.tensor(labels, dtype=torch.long) 
+
+mean = x.mean(dim=(0, 1))
+std = x.std(dim=(0, 1))
+
+# data standardization
+x_normalized = (x - mean) / std
+
+x_normalized = x_normalized.to('cuda')
+
+kf = KFold(n_splits=5, shuffle=True, random_state=42)
+
+best_models = []
+accuracies = []
+
+all_losses = []
+all_accuracies = []
+confusion_matrices = []
+
+data_valAcc = np.random.rand(5,num_epochs)
+data_loss = np.random.rand(5,num_epochs)
+data_traAcc = np.random.rand(5,num_epochs)
+
+for fold, (train_index, val_index) in enumerate(kf.split(x_normalized)):
+    print(f"训练第 {fold+1} 折...")
+    x_train, x_val = x_normalized[train_index], x_normalized[val_index]
+    y_train, y_val = y[train_index], y[val_index]
+
+    model = LSTM(input_size=input_size, hidden_size=hidden_size, num_layers=num_layers, output_size=output_size)
+    best_model, best_accuracy, loss_list, accuracy_list = train_and_evaluate(model, x_train, y_train, x_val, y_val, num_epochs=num_epochs, learning_rate=learning_rate, batch_size=batch_size, fold_idx=fold)
+
+    best_models.append(best_model)
+    accuracies.append(best_accuracy)
+    
+    all_losses.append(loss_list)
+    all_accuracies.append(accuracy_list)
+
+# Calculate confusion matrix 
+average_confusion = sum(confusion_matrices)
+average_normalized_confusion = sum(confusion_matrices) / len(confusion_matrices)
+
+custom_labels =  ["Down", "Stand", "Walk"]  
+plt.figure(figsize=(8, 6))
+plt.imshow(average_normalized_confusion, interpolation='nearest', cmap=plt.cm.Blues, vmin=0, vmax=1)
+plt.title("Average Normalized Confusion Matrix")
+plt.colorbar()
+
+tick_marks = np.arange(output_size)
+plt.xticks(tick_marks, custom_labels, rotation=45)
+plt.yticks(tick_marks, custom_labels)
+plt.ylabel('True label')
+plt.xlabel('Predicted label')
+
+for i in range(output_size):
+    for j in range(output_size):
+        plt.text(j, i, f'{average_normalized_confusion[i, j]/100:.2f}', ha="center", va="center", color="black")
+
+plt.tight_layout()
+plt.show()
+
+best_accuracy_index = accuracies.index(max(accuracies))
+best_model_state_dict = best_models[best_accuracy_index]
+torch.save(best_model_state_dict, r'sheep/LSTM_github.pth')
+
+mean_loss_list = np.mean(all_losses, axis=0)
+mean_accuracy_list = np.mean(all_accuracies, axis=0)
+
+plot_loss_and_accuracy(mean_loss_list, mean_accuracy_list, num_epochs)
+
+# Save the results to an Excel file
+print(data_valAcc.shape)
+df = pd.DataFrame(data_valAcc)
+excel_writer = pd.ExcelWriter(r'sheep\LSTMvalAcc_github.xlsx', engine='xlsxwriter')
+df.to_excel(excel_writer, sheet_name='Sheet1', index=False)
+excel_writer.save()
+
+print(data_loss.shape)
+df = pd.DataFrame(data_loss)
+excel_writer = pd.ExcelWriter(r'sheep\LSTMloss_github.xlsx', engine='xlsxwriter')
+df.to_excel(excel_writer, sheet_name='Sheet1', index=False)
+excel_writer.save()
+
+print(data_traAcc.shape)
+df = pd.DataFrame(data_traAcc)
+excel_writer = pd.ExcelWriter(r'sheep\LSTMtraAcc_github.xlsx', engine='xlsxwriter')
+df.to_excel(excel_writer, sheet_name='Sheet1', index=False)
+excel_writer.save()
