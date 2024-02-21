@@ -15,7 +15,7 @@ from sklearn.model_selection import KFold
 from sklearn.model_selection import StratifiedKFold
 import matplotlib.pyplot as plt
 import os
-import numpy as np 
+import numpy as np
 import h5py
 from sklearn.metrics import confusion_matrix
 import random
@@ -215,14 +215,18 @@ for fold, (train_index, val_index) in enumerate(kf.split(x_normalized)):
     
     all_losses.append(loss_list)
     all_accuracies.append(accuracy_list)
+    
+    
 
 # Calculate confusion matrix 
 average_confusion = sum(confusion_matrices)
 average_normalized_confusion = sum(confusion_matrices) / len(confusion_matrices)
+average_normalized_confusion_pic = average_normalized_confusion / 100
+
 
 custom_labels =  ["Down", "Stand", "Walk"]  
 plt.figure(figsize=(8, 6))
-plt.imshow(average_normalized_confusion, interpolation='nearest', cmap=plt.cm.Blues, vmin=0, vmax=1)
+plt.imshow(average_normalized_confusion_pic, interpolation='nearest', cmap=plt.cm.Blues, vmin=0, vmax=1)
 plt.title("Average Normalized Confusion Matrix")
 plt.colorbar()
 
@@ -243,10 +247,10 @@ best_accuracy_index = accuracies.index(max(accuracies))
 best_model_state_dict = best_models[best_accuracy_index]
 torch.save(best_model_state_dict, r'sheep/LSTM_github.pth')
 
-mean_loss_list = np.mean(all_losses, axis=0)
-mean_accuracy_list = np.mean(all_accuracies, axis=0)
+# mean_loss_list = np.mean(all_losses, axis=0)
+# mean_accuracy_list = np.mean(all_accuracies, axis=0)
 
-plot_loss_and_accuracy(mean_loss_list, mean_accuracy_list, num_epochs)
+# plot_loss_and_accuracy(mean_loss_list, mean_accuracy_list, num_epochs)
 
 # Save the results to an Excel file
 print(data_valAcc.shape)
